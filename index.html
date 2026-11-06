@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-Hant-TW" data-theme="neon">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>夜市彈珠台｜霓虹攤位彈珠遊戲</title>
+  <meta name="description" content="蓄力、發射、看彈珠在釘陣間跳動。每局三顆彈珠，落進 50 到 1000 分的洞口，撞擊彈簧柱累積連擊——在你的螢幕上重溫台灣夜市的彈珠台。" />
+  <meta property="og:title" content="夜市彈珠台｜霓虹攤位彈珠遊戲" />
+  <meta property="og:description" content="每局三顆彈珠，瞄準 1000 分大獎洞。台灣夜市彈珠台，網頁版開張。" />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#1a0d24" />
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="sky" aria-hidden="true"></div>
+  <ul class="lanterns" aria-hidden="true">
+    <li class="lantern l1"><span>福</span></li>
+    <li class="lantern l2"><span>樂</span></li>
+    <li class="lantern l3"><span>彈</span></li>
+    <li class="lantern l4"><span>珠</span></li>
+    <li class="lantern l5"><span>旺</span></li>
+  </ul>
+
+  <header class="marquee">
+    <p class="eyebrow">NIGHT MARKET · PACHINKO STALL No.27</p>
+    <h1 class="sign"><span class="sign-red">夜市</span><span class="sign-yellow">彈珠台</span></h1>
+    <p class="tagline">一枚銅板的運氣，三顆彈珠的夜晚。</p>
+  </header>
+
+  <section class="theme-picker" aria-labelledby="themePickerTitle">
+    <div class="tp-head">
+      <h2 id="themePickerTitle">攤位風格 <small>THEME</small></h2>
+      <p class="tp-current">目前：<span id="currentThemeName">霓虹</span></p>
+    </div>
+    <div class="tp-grid" role="group" aria-labelledby="themePickerTitle">
+      <button type="button" class="tp-btn" data-theme-option="cute" aria-pressed="false"><span class="tp-thumb" aria-hidden="true"><i></i><i></i><i></i></span><span class="tp-name">可愛</span><small>CUTE</small></button>
+      <button type="button" class="tp-btn" data-theme-option="girlish" aria-pressed="false"><span class="tp-thumb" aria-hidden="true"><i></i><i></i><i></i></span><span class="tp-name">少女</span><small>GIRLISH</small></button>
+      <button type="button" class="tp-btn" data-theme-option="retro" aria-pressed="false"><span class="tp-thumb" aria-hidden="true"><i></i><i></i><i></i></span><span class="tp-name">復古</span><small>RETRO</small></button>
+      <button type="button" class="tp-btn" data-theme-option="neon" aria-pressed="true"><span class="tp-thumb" aria-hidden="true"><i></i><i></i><i></i></span><span class="tp-name">霓虹</span><small>NEON</small></button>
+      <button type="button" class="tp-btn" data-theme-option="punk" aria-pressed="false"><span class="tp-thumb" aria-hidden="true"><i></i><i></i><i></i></span><span class="tp-name">龐克</span><small>PUNK</small></button>
+      <button type="button" class="tp-btn" data-theme-option="future" aria-pressed="false"><span class="tp-thumb" aria-hidden="true"><i></i><i></i><i></i></span><span class="tp-name">未來</span><small>FUTURE</small></button>
+    </div>
+    <p id="themeStatus" class="tp-status" role="status" aria-live="polite"></p>
+    <p id="themeStorageNotice" class="notice" hidden></p>
+  </section>
+
+  <main class="stall">
+    <aside class="panel hud" aria-label="計分板">
+      <div class="hud-score">
+        <span class="label">分數 <small>SCORE</small></span>
+        <span id="score" class="digits big" aria-live="polite">0</span>
+      </div>
+      <div class="hud-grid">
+        <div class="cell">
+          <span class="label">最高分 <small>BEST</small></span>
+          <span id="highScore" class="digits">0</span>
+        </div>
+        <div class="cell">
+          <span class="label">剩餘彈珠 <small>BALLS</small></span>
+          <span id="ballsLeft" class="digits green">3</span>
+        </div>
+        <div class="cell">
+          <span class="label">連擊 <small>COMBO</small></span>
+          <span id="combo" class="digits purple">0</span>
+        </div>
+        <div class="cell">
+          <span class="label">回合 <small>ROUND</small></span>
+          <span id="roundLabel" class="digits">1</span>
+        </div>
+      </div>
+      <p class="status"><span class="dot" aria-hidden="true"></span><span id="statusText" role="status" aria-live="polite">準備好了嗎？</span></p>
+      <div class="actions">
+        <button id="startButton" class="btn btn-red" type="button">開始遊戲</button>
+        <button id="restartButton" class="btn btn-ghost" type="button">重新開始</button>
+        <button id="soundButton" class="btn btn-ghost" type="button" aria-pressed="true">音效</button>
+        <button id="helpButton" class="btn btn-ghost" type="button">遊戲說明</button>
+      </div>
+      <p id="storageNotice" class="notice" hidden></p>
+    </aside>
+
+    <section class="machine" aria-label="彈珠台">
+      <div class="cabinet">
+        <div class="bulbs" aria-hidden="true"></div>
+        <div class="screen">
+          <canvas id="gameCanvas" width="560" height="680" aria-label="彈珠台遊戲畫面">您的瀏覽器不支援 canvas。</canvas>
+          <div id="gameOverlay" class="overlay">
+            <div class="ticket">
+              <p class="ticket-tag">TONIGHT ONLY</p>
+              <h2 id="overlayTitle">夜市彈珠台</h2>
+              <p id="overlayMessage">按住蓄力，放開發射。三顆彈珠，看你今晚手氣。</p>
+              <button id="overlayButton" class="btn btn-red btn-lg" type="button">開始遊戲</button>
+            </div>
+          </div>
+        </div>
+        <div class="launcher">
+          <div class="power" aria-hidden="true">
+            <span class="power-label">力道 <small>POWER</small></span>
+            <div class="power-track"><div id="powerFill" class="power-fill"></div></div>
+          </div>
+          <button id="launchButton" class="btn btn-launch" type="button">蓄力發射</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel prizes" aria-label="獎項說明">
+      <h2 class="panel-title">獎項表 <small>PRIZE BOARD</small></h2>
+      <ol class="prize-list">
+        <li class="p-jack"><span>大獎洞</span><b>1000</b></li>
+        <li class="p-500"><span>500 分洞</span><b>500</b></li>
+        <li class="p-200"><span>200 分洞</span><b>200</b></li>
+        <li class="p-100"><span>100 分洞</span><b>100</b></li>
+        <li class="p-50"><span>50 分洞</span><b>50</b></li>
+      </ol>
+      <ul class="rules">
+        <li><b>3</b> 顆彈珠一回合</li>
+        <li>每撞彈簧柱 <b>3</b> 下，加 <b>50</b> 分</li>
+        <li>按住發射鈕或空白鍵蓄力，放開出手</li>
+      </ul>
+    </aside>
+  </main>
+
+  <footer class="foot">
+    <p>夜市彈珠台 · 營業到天亮 · OPEN TILL DAWN</p>
+    <a class="source-download" href="./night-market-source.zip" download>下載完整原始碼 · HTML / CSS / JS</a>
+  </footer>
+
+  <dialog id="helpDialog" class="help" aria-labelledby="helpTitle">
+    <h2 id="helpTitle">遊戲說明</h2>
+    <ol>
+      <li>按下「開始遊戲」，每回合有 3 顆彈珠。</li>
+      <li>按住「蓄力發射」（或在台面上按住拖曳），力道條越滿彈得越高，放開即發射。</li>
+      <li>彈珠落入洞口得分：50、100、200、500，正中央大獎洞 1000 分。</li>
+      <li>撞擊彈簧柱累積連擊，每 3 下額外加 50 分。</li>
+      <li>撞中特殊燈籠另加 100 分；左右拖曳可調整出球方向。</li>
+      <li>三顆彈珠用完即結束，最高分會留在本機。</li>
+    </ol>
+    <button id="closeHelpButton" class="btn btn-red" type="button">知道了</button>
+  </dialog>
+
+  <script defer src="./game.js"></script>
+</body>
+</html>
