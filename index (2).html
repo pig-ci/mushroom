@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
+<title>字旋對決 — 字形陀螺競技場</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2314121f'/%3E%3Ctext x='32' y='46' text-anchor='middle' font-size='44' fill='%233fe0c5'%3E旋%3C/text%3E%3C/svg%3E" />
+<meta name="description" content="字旋對決：以漢字鑄成的陀螺在圓形競技場中碰撞衝刺，六十秒內把對手撞出場外。離線單檔網頁遊戲。" />
+<meta property="og:title" content="字旋對決" />
+<meta property="og:description" content="以漢字鑄成的陀螺，六十秒碰撞對決。衝刺、閃避、撞出場外。" />
+<meta property="og:type" content="website" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="字旋對決" />
+<meta name="twitter:description" content="以漢字鑄成的陀螺，六十秒碰撞對決。" />
+<style>
+/* Palette: ink-lacquer night with vermilion seal + jade; paper cream text */
+:root{--ink:#14121f;--ink2:#1f1b30;--paper:#f3e9d2;--dim:#a99f8a;--jade:#3fe0c5;--seal:#ff5a4a;--gold:#f2b84b;--line:rgba(243,233,210,.14);
+--serif:"Songti TC","Noto Serif TC","PMingLiU","MingLiU",serif;--sans:"PingFang TC","Microsoft JhengHei","Noto Sans TC",system-ui,sans-serif;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;background:var(--ink);color:var(--paper);font-family:var(--sans);overflow:hidden;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+body::after{content:"";position:fixed;inset:0;pointer-events:none;opacity:.07;background-image:repeating-radial-gradient(circle at 30% 20%,#fff 0 1px,transparent 1px 3px);mix-blend-mode:overlay}
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+canvas#c{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none}
+/* HUD */
+.hud{position:relative;z-index:2;display:grid;grid-template-columns:1fr auto 1fr;gap:12px;align-items:start;padding:max(12px,env(safe-area-inset-top)) 16px 0;pointer-events:none;transition:opacity .3s}
+.hud.hidden{opacity:0}
+.side{display:flex;flex-direction:column;gap:6px;min-width:0}
+.side.r{align-items:flex-end;text-align:right}
+.name{font-family:var(--serif);font-size:15px;letter-spacing:.2em;display:flex;gap:8px;align-items:center}
+.seal{display:inline-grid;place-items:center;width:26px;height:26px;border-radius:5px;font-family:var(--serif);font-weight:900;font-size:16px;color:var(--ink)}
+.bar{width:min(36vw,280px);height:10px;background:rgba(243,233,210,.08);border:1px solid var(--line);border-radius:2px;overflow:hidden;position:relative}
+.bar i{position:absolute;inset:0;transform-origin:left;transition:transform .18s cubic-bezier(.2,.8,.2,1)}
+.side.r .bar i{transform-origin:right}
+.meta{font-family:var(--mono);font-size:11px;color:var(--dim);display:flex;gap:10px}
+.cd{width:min(36vw,280px);height:3px;background:rgba(243,233,210,.06);position:relative}
+.cd i{position:absolute;inset:0;transform-origin:left;background:var(--gold)}
+.side.r .cd i{transform-origin:right}
+.clock{text-align:center}
+.clock b{display:block;font-family:var(--mono);font-size:34px;font-weight:700;line-height:1;letter-spacing:-.02em}
+.clock b.warn{color:var(--seal);animation:pulse .5s infinite alternate}
+.clock small{font-size:10px;letter-spacing:.3em;color:var(--dim)}
+@keyframes pulse{to{opacity:.55}}
+.tools{position:absolute;right:16px;bottom:max(14px,env(safe-area-inset-bottom));z-index:6;display:flex;gap:8px}
+.chip{pointer-events:auto;padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:rgba(20,18,31,.7);font-size:12px;letter-spacing:.1em;backdrop-filter:blur(6px);transition:transform .15s,border-color .2s}
+.chip:hover{border-color:var(--gold);transform:translateY(-1px)}
+.stats{position:absolute;left:16px;bottom:max(14px,env(safe-area-inset-bottom));z-index:6;font-family:var(--mono);font-size:11px;color:var(--dim);display:flex;gap:14px}
+.stats b{color:var(--paper)}
+/* Overlays */
+.ov{position:absolute;inset:0;z-index:5;display:grid;place-items:center;padding:20px;background:radial-gradient(ellipse at center,rgba(20,18,31,.35),rgba(20,18,31,.88) 70%);opacity:0;pointer-events:none;transition:opacity .35s}
+.ov.on{opacity:1;pointer-events:auto}
+.ov{overflow-y:auto;overscroll-behavior:contain}
+#ovMenu{padding:max(20px,env(safe-area-inset-top)) 20px 90px;place-items:start center}
+#ovMenu .card{margin:auto}
+#ovMenu .card{max-width:640px;margin:auto}
+#ovMenu h1{font-size:clamp(48px,10vw,84px)}
+#ovMenu .lead{margin:6px auto 12px;font-size:14px}
+#ovMenu .keys{margin-bottom:14px}
+.glyph-settings{display:grid;grid-template-columns:1fr 1fr;gap:12px;text-align:left;margin:14px auto 8px;max-width:550px}
+.glyph-field{padding:12px;border:1px solid var(--line);border-radius:8px;background:rgba(31,27,48,.8);min-width:0}
+.glyph-field>label{display:block;font-size:13px;color:var(--jade);margin-bottom:8px}
+.glyph-field.enemy>label{color:var(--seal)}
+.glyph-entry{display:flex;gap:10px;align-items:center}
+.glyph-preview{flex:none;width:64px;height:64px;border:1px solid var(--line);border-radius:4px;background-color:var(--ink);background-image:conic-gradient(#292438 25%,transparent 0 50%,#292438 0 75%,transparent 0);background-size:16px 16px}
+.glyph-field input{min-width:0;width:100%;background:#14121f;color:var(--paper);border:1px solid var(--line);border-radius:4px;padding:8px;font:22px var(--sans);user-select:text;touch-action:manipulation}
+.glyph-field input:focus{outline:2px solid var(--gold);outline-offset:2px}
+.glyph-field input[aria-invalid="true"]{border-color:var(--gold)}
+.glyph-presets{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0}
+.glyph-presets button{min-width:30px;min-height:32px;padding:2px 5px;font-size:19px;border:1px solid var(--line);border-radius:4px}
+.glyph-presets button:hover,.glyph-presets button[aria-pressed="true"]{background:var(--ink);border-color:var(--gold);color:var(--gold)}
+.fallback-label{display:flex;gap:6px;align-items:center;font-size:11px;color:var(--dim)}
+.fallback-label input{font-size:15px;width:70px;padding:4px}
+.fallback-label button{font-size:11px;color:var(--gold);text-decoration:underline;white-space:nowrap;padding:5px}
+.glyph-status{color:var(--dim);font-size:11px;line-height:1.5;min-height:33px;margin-top:6px}
+.glyph-status.warning{color:var(--gold)}
+.glyph-note{font-size:11px;color:var(--dim);line-height:1.6;margin:4px auto 12px}
+@media(max-width:420px){.glyph-field{padding:8px}.glyph-preview{width:48px;height:48px}.glyph-entry{gap:6px}.glyph-field input{padding:5px;font-size:19px}.glyph-presets{gap:4px}.glyph-presets button{min-width:29px}.glyph-settings{gap:8px}#ovMenu{padding:24px 12px 76px}#ovMenu .lead{font-size:12px}}
+.card{max-width:560px;width:100%;text-align:center;transform:translateY(14px);transition:transform .5s cubic-bezier(.2,.9,.2,1)}
+.ov.on .card{transform:none}
+.kicker{font-family:var(--mono);font-size:11px;letter-spacing:.4em;color:var(--gold)}
+h1{font-family:var(--serif);font-weight:900;font-size:clamp(56px,14vw,120px);line-height:1;letter-spacing:.06em;margin:10px 0 6px;text-shadow:0 6px 0 rgba(255,90,74,.35)}
+h1 span{color:var(--seal)}
+h2{font-family:var(--serif);font-size:clamp(44px,11vw,88px);font-weight:900;letter-spacing:.1em}
+.lead{color:var(--dim);font-size:15px;line-height:1.8;margin:8px auto 18px;max-width:440px}
+.keys{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 auto 22px;max-width:460px;font-size:12px;color:var(--dim)}
+.keys div{border:1px solid var(--line);border-radius:6px;padding:10px 6px;background:rgba(31,27,48,.6)}
+.keys kbd{display:block;font-family:var(--mono);color:var(--paper);font-size:13px;margin-bottom:4px}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:14px 34px;background:var(--seal);color:var(--ink);font-family:var(--serif);font-weight:900;font-size:20px;letter-spacing:.3em;border-radius:4px;box-shadow:0 5px 0 #a3271c;transition:transform .1s,box-shadow .1s}
+.btn:hover{transform:translateY(-2px);box-shadow:0 7px 0 #a3271c}
+.btn:active{transform:translateY(4px);box-shadow:0 1px 0 #a3271c}
+.btn.alt{background:transparent;color:var(--paper);box-shadow:inset 0 0 0 1px var(--line)}
+.row{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-top:6px}
+.hint{margin-top:14px;font-family:var(--mono);font-size:11px;color:var(--dim)}
+.reason{color:var(--gold);font-size:15px;margin:6px 0 18px;letter-spacing:.1em}
+/* Mobile controls */
+.touch{position:absolute;inset:auto 0 0 0;z-index:3;display:none;justify-content:space-between;align-items:flex-end;padding:0 22px calc(58px + env(safe-area-inset-bottom));pointer-events:none}
+@media (pointer:coarse),(max-width:760px){.touch{display:flex}.stats{display:none}}
+.touch.hidden{display:none!important}
+.stick{pointer-events:auto;touch-action:none;width:132px;height:132px;border-radius:50%;border:1px solid var(--line);background:radial-gradient(circle,rgba(63,224,197,.08),rgba(20,18,31,.5));position:relative}
+.stick i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:var(--jade);opacity:.85;box-shadow:0 0 0 6px rgba(63,224,197,.15)}
+.dashb{pointer-events:auto;touch-action:none;width:96px;height:96px;border-radius:50%;background:var(--seal);color:var(--ink);font-family:var(--serif);font-weight:900;font-size:26px;box-shadow:0 5px 0 #a3271c;position:relative;overflow:hidden}
+.dashb.cool{filter:saturate(.3) brightness(.7)}
+.dashb:active{transform:translateY(3px);box-shadow:0 2px 0 #a3271c}
+.abil{display:grid;grid-template-columns:auto 1fr auto;gap:3px 6px;align-items:center;margin:8px 0 4px;font-size:11px}
+.abil span{color:var(--dim);letter-spacing:.1em}.abil em{font-style:normal;font-family:var(--mono);color:var(--paper);min-width:24px;text-align:right}
+.abil b{position:relative;height:6px;background:rgba(243,233,210,.07);border-radius:1px;overflow:hidden}
+.abil b::before{content:"";position:absolute;left:35.7%;top:-2px;bottom:-2px;width:1px;background:rgba(243,233,210,.35)}
+.abil b i{position:absolute;inset:0;transform-origin:left;background:var(--jade);transition:transform .35s cubic-bezier(.2,.8,.2,1)}
+.enemy .abil b i{background:var(--seal)}.abil b i.lo{opacity:.45}
+.kind{display:flex;gap:8px;align-items:baseline;margin-top:8px;font-size:12px}
+.kind strong{font-family:var(--serif);font-size:15px;color:var(--gold);letter-spacing:.15em;white-space:nowrap}
+.kind small{color:var(--dim);line-height:1.5}
+.anal{margin-top:6px;font-size:11px;color:var(--dim)}.anal summary{cursor:pointer;color:var(--paper);letter-spacing:.1em;padding:3px 0}
+.anal dl{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;margin-top:4px;font-family:var(--mono)}.anal dd{color:var(--paper)}
+.rules{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;max-width:550px;margin:4px auto 14px;text-align:left}
+.rules div{border-left:2px solid var(--gold);padding:6px 10px;background:rgba(31,27,48,.55);font-size:12px;line-height:1.6;color:var(--dim)}
+.rules b{display:block;color:var(--paper);font-family:var(--serif);letter-spacing:.12em;font-size:13px}
+.rules div:nth-child(2){border-color:var(--seal)}.rules div:nth-child(3){border-color:var(--jade)}
+.hab{font-size:11px;color:var(--dim);letter-spacing:.08em}.hab b{color:var(--gold);font-weight:600}
+.hst{font-size:12px;font-family:var(--serif);letter-spacing:.12em;min-height:17px;transition:color .2s}
+.hst.d{color:var(--gold)}.hst.c{color:var(--seal);animation:pulse .3s infinite alternate}
+#phase{display:block;margin-top:4px;font-size:11px;letter-spacing:.2em;color:var(--jade)}#phase.live{color:var(--dim)}
+.flash{position:absolute;left:50%;top:28%;z-index:4;transform:translate(-50%,-50%) scale(.8);opacity:0;pointer-events:none;font-family:var(--serif);font-weight:900;font-size:clamp(34px,8vw,64px);letter-spacing:.2em;color:var(--seal);text-shadow:0 4px 0 rgba(20,18,31,.9);white-space:nowrap;transition:opacity .25s,transform .4s cubic-bezier(.2,.9,.2,1)}
+.flash.on{opacity:1;transform:translate(-50%,-50%) scale(1)}.flash small{display:block;font-size:13px;letter-spacing:.3em;color:var(--paper);text-align:center}
+@media(max-width:560px){.rules{grid-template-columns:1fr}.hab{display:none}.hst{font-size:10px}}
+@media (max-width:560px){.bar,.cd{width:30vw}.clock b{font-size:26px}.name{font-size:12px;letter-spacing:.1em}.keys{grid-template-columns:1fr 1fr}}
+</style>
+</head>
+<body>
+<div id="app">
+  <canvas id="c" aria-label="競技場"></canvas>
+  <div class="hud hidden" id="hud">
+    <div class="side">
+      <div class="name"><span class="seal" id="pSeal" style="background:var(--jade)">旋</span>玩家</div>
+      <div class="bar"><i id="pHp" style="background:var(--jade)"></i></div>
+      <div class="cd"><i id="pCd"></i></div>
+      <div class="meta"><span id="pRpm">3600 RPM</span><span id="pDash">衝刺 可用</span></div>
+      <div class="hab" id="pAb"></div><div class="hst" id="pSt"></div>
+    </div>
+    <div class="clock"><b id="time">60</b><small>秒</small><small id="phase"></small></div>
+    <div class="side r">
+      <div class="name">對手<span class="seal" id="eSeal" style="background:var(--seal)">破</span></div>
+      <div class="bar"><i id="eHp" style="background:var(--seal)"></i></div>
+      <div class="cd"><i id="eCd"></i></div>
+      <div class="meta"><span id="eDash">衝刺 可用</span><span id="eRpm">3600 RPM</span></div>
+      <div class="hab" id="eAb"></div><div class="hst" id="eSt"></div>
+    </div>
+  </div>
+  <div class="flash" id="flash" aria-live="assertive"></div>
+  <div class="stats"><span>勝場 <b id="sW">0</b></span><span>連勝 <b id="sS">0</b></span><span>最佳 <b id="sB">0</b></span></div>
+  <div class="tools">
+    <button class="chip" id="bSound" data-testid="button-sound">音效 開</button>
+    <button class="chip" id="bPause" data-testid="button-pause">暫停</button>
+    <button class="chip" id="bDl" data-testid="button-download">下載單檔</button>
+  </div>
+  <div class="touch hidden" id="touch">
+    <div class="stick" id="stick" data-testid="control-joystick"><i id="knob"></i></div>
+    <button class="dashb" id="dashB" data-testid="button-dash">衝</button>
+  </div>
+
+  <div class="ov on" id="ovMenu"><div class="card">
+    <div class="kicker">GLYPH TOP ARENA · 六十秒</div>
+    <h1>字旋<span>對決</span></h1>
+    <p class="lead">選擇你的字形，在圓形擂台中碰撞、衝刺。削減對手耐久與轉速，或把它撞出場外；六十秒後依剩餘耐久與轉速決勝。</p>
+    <div class="glyph-settings" aria-label="自訂雙方陀螺字元">
+      <div class="glyph-field">
+        <label for="pGlyph">玩家字形 · 最多 2 個字元</label>
+        <div class="glyph-entry"><canvas class="glyph-preview" id="pPreview" width="192" height="192" aria-label="玩家字形即時預覽"></canvas><input id="pGlyph" value="旋" maxlength="128" autocomplete="off" spellcheck="false" aria-describedby="pGlyphStatus" /></div>
+        <div class="glyph-presets" data-side="player" aria-label="玩家常用字元">
+          <button type="button">●</button><button type="button">○</button><button type="button">◎</button><button type="button">★</button><button type="button">龍</button><button type="button">旋</button><button type="button">◆</button><button type="button">▲</button><button type="button">〇</button><button type="button">|</button>
+        </div>
+        <div class="fallback-label"><label for="pFallback">替代字元</label><input id="pFallback" value="●" maxlength="128" autocomplete="off" spellcheck="false" /><button type="button" id="pUseFallback">套用</button></div>
+        <div class="kind" id="pKind"></div><div class="abil" id="pAbil"></div><details class="anal"><summary>遮罩量測</summary><dl id="pAnal"></dl></details>
+        <p id="pGlyphStatus" class="glyph-status" role="status">字形的透明區域不參與碰撞。</p>
+      </div>
+      <div class="glyph-field enemy">
+        <label for="eGlyph">對手字形 · 最多 2 個字元</label>
+        <div class="glyph-entry"><canvas class="glyph-preview" id="ePreview" width="192" height="192" aria-label="對手字形即時預覽"></canvas><input id="eGlyph" value="破" maxlength="128" autocomplete="off" spellcheck="false" aria-describedby="eGlyphStatus" /></div>
+        <div class="glyph-presets" data-side="enemy" aria-label="對手常用字元">
+          <button type="button">●</button><button type="button">○</button><button type="button">◎</button><button type="button">★</button><button type="button">龍</button><button type="button">破</button><button type="button">◆</button><button type="button">▲</button><button type="button">〇</button><button type="button">|</button>
+        </div>
+        <div class="fallback-label"><label for="eFallback">替代字元</label><input id="eFallback" value="★" maxlength="128" autocomplete="off" spellcheck="false" /><button type="button" id="eUseFallback">套用</button></div>
+        <div class="kind" id="eKind"></div><div class="abil" id="eAbil"></div><details class="anal"><summary>遮罩量測</summary><dl id="eAnal"></dl></details>
+        <p id="eGlyphStatus" class="glyph-status" role="status">字形的透明區域不參與碰撞。</p>
+      </div>
+    </div>
+    <p class="glyph-note">棋盤底紋表示透明區域。字形與碰撞輪廓同步旋轉；光暈與拖尾不參與碰撞。<br>若預覽顯示缺字方框，可自行選字或修改替代字元。</p>
+    <div class="rules">
+      <div><b>開局三秒安全</b>坑洞在前三秒封閉，先看清位置再出手。</div>
+      <div><b>坑洞會吸</b>靠近黑坑會被拉向坑心；被捕捉時往反方向衝刺才能脫身。</div>
+      <div><b>字形即能力</b>墨量、圓度、尖角與孔洞決定防禦、重量、速度、攻擊、擊退、穩定。</div>
+      <div><b>擊退不是秒殺</b>高擊退可把對手推向坑洞或場外，但仍需它真的掉進去。</div>
+    </div>
+    <div class="keys">
+      <div><kbd>WASD / 方向鍵</kbd>移動</div>
+      <div><kbd>空白鍵</kbd>衝刺 · 冷卻 2.6 秒</div>
+      <div><kbd>Esc / P</kbd>暫停</div>
+    </div>
+    <button class="btn" id="bStart" data-testid="button-start">開戰</button>
+    <div class="hint">按 Enter 開始 · 手機使用左側搖桿與右側衝刺鍵</div>
+  </div></div>
+
+  <div class="ov" id="ovPause"><div class="card">
+    <div class="kicker">PAUSED</div><h2>暫停</h2><p class="lead">陀螺懸在半空。準備好再回來。</p>
+    <div class="row"><button class="btn" id="bResume" data-testid="button-resume">繼續</button><button class="btn alt" id="bHome1" data-testid="button-home-pause">主選單</button></div>
+  </div></div>
+
+  <div class="ov" id="ovResult"><div class="card">
+    <div class="kicker" id="rKick">RESULT</div><h2 id="rTitle">勝</h2><p class="reason" id="rReason"></p>
+    <div class="row"><button class="btn" id="bRetry" data-testid="button-retry">再戰</button><button class="btn alt" id="bHome2" data-testid="button-home">主選單</button></div>
+    <div class="hint" id="rStats"></div>
+  </div></div>
+</div>
+<!-- GLYPH_SOURCES_START -->
+<script id="glyph-analysis">
+/* Pure mask analysis: no text meaning, network, per-frame readback or randomness.
+ * Unicode presets only disambiguate common geometric symbols; every other glyph
+ * is classified from the same alpha mask used by display and collision.
+ */
+(() => {
+  'use strict';
+  const clamp = (n, low = 0, high = 1) => Math.max(low, Math.min(high, n));
+  const BASE = { defense: 100, weight: 100, speed: 100, attack: 100, knockback: 100, stability: 100 };
+  function balanced(reason = '均衡型：能力平衡，適合熟悉移動與衝刺。', valid = false) {
+    return {
+      analysis: { valid, kind: 'balanced', label: '均衡型', description: reason,
+        width: 0, height: 0, inkRatio: 0, centroid: { x: 0, y: 0 },
+        sharpness: 0, roundness: 0, holes: 0, components: 0 },
+      abilities: { ...BASE },
+    };
+  }
+  function analyze(shape, text = '') {
+    try {
+      const { mask, grid, cell } = shape;
+      if (!mask || grid < 8 || mask.length !== grid * grid || !(cell > 0)) return balanced();
+      let ink = 0, sx = 0, sy = 0, minX = grid, minY = grid, maxX = 0, maxY = 0;
+      const foreground = [], radii = new Float64Array(64);
+      for (let y = 0; y < grid; y++) for (let x = 0; x < grid; x++) {
+        if (!mask[y * grid + x]) continue;
+        ink++; sx += x + 0.5; sy += y + 0.5; foreground.push(y * grid + x);
+        minX = Math.min(minX, x); maxX = Math.max(maxX, x);
+        minY = Math.min(minY, y); maxY = Math.max(maxY, y);
+      }
+      if (ink < 8) return balanced('分析資料不足，使用均衡能力。');
+      const cx = sx / ink, cy = sy / ink;
+      let perimeter = 0;
+      for (const i of foreground) {
+        const x = i % grid, y = Math.floor(i / grid);
+        if (x === 0 || !mask[i - 1]) perimeter++;
+        if (x === grid - 1 || !mask[i + 1]) perimeter++;
+        if (y === 0 || !mask[i - grid]) perimeter++;
+        if (y === grid - 1 || !mask[i + grid]) perimeter++;
+        const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
+        const bin = Math.min(63, Math.floor((Math.atan2(dy, dx) + Math.PI) / (Math.PI * 2) * 64));
+        radii[bin] = Math.max(radii[bin], Math.hypot(dx, dy));
+      }
+      const seen = new Uint8Array(mask.length), queue = new Int32Array(mask.length);
+      let components = 0, holes = 0;
+      // Flood-fill both ink and background. Background touching an image border
+      // is external air, not a hole. Tiny antialias specks don't alter the class.
+      for (let seed = 0; seed < mask.length; seed++) {
+        if (seen[seed]) continue;
+        const color = !!mask[seed]; let head = 0, tail = 1, touchesBorder = false;
+        queue[0] = seed; seen[seed] = 1;
+        while (head < tail) {
+          const i = queue[head++], x = i % grid, y = Math.floor(i / grid);
+          if (!x || !y || x === grid - 1 || y === grid - 1) touchesBorder = true;
+          for (const neighbor of [x > 0 ? i - 1 : -1, x < grid - 1 ? i + 1 : -1,
+            y > 0 ? i - grid : -1, y < grid - 1 ? i + grid : -1]) {
+            if (neighbor < 0 || seen[neighbor] || !!mask[neighbor] !== color) continue;
+            seen[neighbor] = 1; queue[tail++] = neighbor;
+          }
+        }
+        if (color && tail >= Math.max(4, ink * 0.003)) components++;
+        if (!color && !touchesBorder && tail >= 6) holes++;
+      }
+      // Empty polar bins only occur on very narrow/disconnected glyphs.
+      const nonzero = Array.from(radii).filter(n => n > 0);
+      const mean = nonzero.reduce((a, b) => a + b, 0) / nonzero.length;
+      for (let i = 0; i < 64; i++) if (!radii[i]) radii[i] = mean;
+      const cv = Math.sqrt(Array.from(radii).reduce((sum, n) => sum + (n - mean) ** 2, 0) / 64) / mean;
+      let roughness = 0;
+      for (let i = 0; i < 64; i++) roughness += Math.abs(radii[(i + 63) % 64] - 2 * radii[i] + radii[(i + 1) % 64]);
+      roughness /= 64 * mean;
+      const w = maxX - minX + 1, h = maxY - minY + 1, aspect = Math.min(w, h) / Math.max(w, h);
+      const inkRatio = ink / (w * h), circularity = clamp(4 * Math.PI * ink / (perimeter * perimeter));
+      const roundness = clamp(1 - cv * 2.8 - roughness * 3) * aspect ** 0.2;
+      const sharpness = clamp(cv * 1.8 + roughness * 2 + (1 - circularity) * 0.2);
+      let kind = 'balanced';
+      if (/^[●○〇◎◯◉⊙]$/u.test(text)) kind = 'round';
+      else if (/^[★☆✦◆◇▲△▼▽◀▶◢◣◤◥]$/u.test(text)) kind = 'angular';
+      else if (aspect < 0.35 || /^[|丨一—─│/\\]$/u.test(text)) kind = 'slender';
+      else if (inkRatio > 0.54 && aspect > 0.6) kind = 'dense';
+      else if (roundness > 0.75 && aspect > 0.84) kind = 'round';
+      else if (sharpness > 0.5 && components <= 3) kind = 'angular';
+      else if (inkRatio > 0.44 && aspect > 0.7 && holes + components > 4) kind = 'dense';
+      const profiles = {
+        round: ['圓潤型', '防禦高、抗擊退強；適合守住安全盤面，衝刺較溫和。',
+          { defense: 124, weight: 112, speed: 88, attack: 86, knockback: 90, stability: 130 }],
+        angular: ['尖角型', '攻擊與擊退強；適合把對手推向洞口，自身較怕反撞。',
+          { defense: 82, weight: 86, speed: 108, attack: 124, knockback: 130, stability: 78 }],
+        slender: ['細長型', '移動與突進快；碰撞面窄，需掌握旋轉角度，避免停在洞邊。',
+          { defense: 82, weight: 80, speed: 130, attack: 100, knockback: 106, stability: 85 }],
+        dense: ['厚重型', '重量與抗擊退高；適合控場，但起步慢，仍須遠離洞心。',
+          { defense: 115, weight: 130, speed: 80, attack: 110, knockback: 112, stability: 112 }],
+        balanced: ['均衡型', '攻守均衡；善用衝刺角度，在洞口外側尋找反擊機會。', { ...BASE }],
+      };
+      const [label, description, base] = profiles[kind], abilities = { ...base };
+      // Continuous small modifiers make glyphs in one class differ too.
+      abilities.weight += (inkRatio - 0.5) * 12;
+      abilities.defense += (inkRatio - 0.5) * 8;
+      abilities.attack += (sharpness - 0.4) * 8;
+      abilities.knockback += (sharpness - 0.4) * 6;
+      abilities.stability += (roundness - 0.5) * 6 - Math.min(3, components - 1);
+      abilities.speed -= (inkRatio - 0.5) * 6;
+      for (const key of Object.keys(abilities)) abilities[key] = Math.round(clamp(abilities[key], 65, 135));
+      return {
+        analysis: { valid: true, kind, label, description, width: w * cell, height: h * cell,
+          inkRatio, centroid: { x: (cx - grid / 2) * cell, y: (cy - grid / 2) * cell },
+          sharpness, roundness, holes, components },
+        abilities,
+      };
+    } catch (_) { return balanced('字形分析失敗，使用均衡能力；可重新選字。'); }
+  }
+  window.GlyphAnalysis = Object.freeze({ analyze, balanced, clamp });
+})();
+
+</script>
+<script id="glyph-shapes">
+/* 字形是唯一碰撞實體：同一張離屏圖同時供顯示與遮罩取樣使用。
+ * 高解析圖 192px；96px alpha 遮罩，每格 0.75 世界單位。
+ * 只在文字改變時讀取像素，固定步進中不使用 getImageData。
+ */
+(() => {
+  'use strict';
+  const SIZE = 72, GRID = 96, IMAGE = 192, CELL = SIZE / GRID;
+  const FONT = '"PingFang TC","Microsoft JhengHei","Noto Sans CJK TC","Noto Sans Symbols 2","Apple Color Emoji","Segoe UI Emoji",sans-serif';
+  const cache = new Map(), fingerprints = new Map();
+  const segmenter = typeof Intl.Segmenter === 'function'
+    ? new Intl.Segmenter('zh-Hant', { granularity: 'grapheme' }) : null;
+  function normalize(text) {
+    const clean = String(text || '').slice(0, 256).normalize('NFC')
+      .replace(/[\u0000-\u0020\u007f-\u009f\u200b\u200e\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, '');
+    const units = segmenter
+      ? Array.from(segmenter.segment(clean), item => item.segment)
+      : Array.from(clean);
+    return units.slice(0, 2).map(unit => unit.slice(0, 64)).join('');
+  }
+  function canvas(size) {
+    // Detached HTML canvas is an offscreen canvas and works in Safari/file://.
+    const c = document.createElement('canvas');
+    c.width = c.height = size;
+    return c;
+  }
+  function source(text) {
+    const c = canvas(512), context = c.getContext('2d', { willReadFrequently: true });
+    context.font = `700 160px ${FONT}`;
+    context.textAlign = 'center'; context.textBaseline = 'middle';
+    context.fillStyle = '#f3e9d2';
+    context.fillText(text, 256, 256);
+    const data = context.getImageData(0, 0, 512, 512).data;
+    let left = 512, right = -1, top = 512, bottom = -1, hash = 2166136261;
+    for (let y = 0; y < 512; y++) for (let x = 0; x < 512; x++) {
+      const alpha = data[(y * 512 + x) * 4 + 3];
+      // Alpha fingerprint catches standard .notdef/replacement boxes.
+      hash = Math.imul(hash ^ alpha, 16777619) >>> 0;
+      if (alpha >= 32) {
+        left = Math.min(left, x); right = Math.max(right, x);
+        top = Math.min(top, y); bottom = Math.max(bottom, y);
+      }
+    }
+    return { canvas: c, left, top, width: right - left + 1, height: bottom - top + 1, hash };
+  }
+  function missing(text) {
+    if (!fingerprints.has(text)) {
+      if (fingerprints.size >= 64) fingerprints.clear();
+      const s = source(text);
+      fingerprints.set(text, s.width <= 0 || s.height <= 0 ? 'empty' : s.hash);
+    }
+    return fingerprints.get(text);
+  }
+  function unsupported(text) {
+    const units = segmenter ? Array.from(segmenter.segment(text), x => x.segment) : Array.from(text);
+    const tofu = [missing('\u{10ffff}'), missing('\ufffd'), missing('\u{ffff}')];
+    return !text || units.some(unit => {
+      const hash = missing(unit);
+      return hash === 'empty' || tofu.includes(hash);
+    });
+  }
+  function buildShape(text) {
+    if (cache.has(text)) return cache.get(text);
+    const src = source(text), image = canvas(IMAGE);
+    const context = image.getContext('2d');
+    // Fit the actual ink, not the font's square advance box, preserving aspect ratio.
+    const factor = (IMAGE - 12) / Math.max(src.width, src.height);
+    const width = src.width * factor, height = src.height * factor;
+    context.drawImage(src.canvas, src.left, src.top, src.width, src.height,
+      (IMAGE - width) / 2, (IMAGE - height) / 2, width, height);
+    const low = canvas(GRID), lowContext = low.getContext('2d', { willReadFrequently: true });
+    lowContext.drawImage(image, 0, 0, GRID, GRID);
+    const rgba = lowContext.getImageData(0, 0, GRID, GRID).data;
+    const mask = new Uint8Array(GRID * GRID), points = [], edge = [];
+    let radius = 0;
+    for (let i = 0; i < mask.length; i++) mask[i] = rgba[i * 4 + 3] >= 32 ? 1 : 0;
+    for (let y = 0; y < GRID; y++) for (let x = 0; x < GRID; x++) {
+      const i = y * GRID + x;
+      if (!mask[i]) continue;
+      const px = (x + 0.5) * CELL - SIZE / 2, py = (y + 0.5) * CELL - SIZE / 2;
+      points.push(px, py);
+      radius = Math.max(radius, Math.hypot(px, py) + CELL * Math.SQRT1_2);
+      if (!x || !y || x === GRID - 1 || y === GRID - 1 ||
+          !mask[i - 1] || !mask[i + 1] || !mask[i - GRID] || !mask[i + GRID]) edge.push(px, py);
+    }
+    const shape = { text, canvas: image, mask, points: new Float32Array(points),
+      edge: new Float32Array(edge), size: SIZE, grid: GRID, cell: CELL, radius };
+    const profile = window.GlyphAnalysis
+      ? window.GlyphAnalysis.analyze(shape, text)
+      : { analysis: { valid: false }, abilities: { defense: 100, weight: 100, speed: 100, attack: 100, knockback: 100, stability: 100 } };
+    Object.assign(shape, profile);
+    if (cache.size >= 24) cache.delete(cache.keys().next().value);
+    cache.set(text, shape);
+    return shape;
+  }
+  function prepare(input, replacement = '●') {
+    const requested = normalize(input), fallback = normalize(replacement);
+    let text = requested, reason = '';
+    if (!requested) reason = '請輸入一至兩個可見字元，暫用替代字元。';
+    else if (unsupported(requested)) reason = '此字元可能不受目前字型支援，暫用替代字元；可在下方修改。';
+    if (reason) text = fallback && !unsupported(fallback) ? fallback : '●';
+    return { requested, text, usedFallback: !!reason, reason, shape: buildShape(text) };
+  }
+  // Transform occupied cell centres from A's local coordinates directly into B's
+  // coordinates. Transparent cells, including ring holes, are never filled.
+  function samplesContact(a, b, booleanOnly) {
+    const A = a.shape, B = b.shape;
+    const cb = Math.cos(b.angle), sb = Math.sin(b.angle);
+    const dx = a.x - b.x, dy = a.y - b.y;
+    const tx = dx * cb + dy * sb, ty = -dx * sb + dy * cb;
+    const angle = a.angle - b.angle, c = Math.cos(angle), s = Math.sin(angle);
+    const half = B.size / 2, inverse = 1 / B.cell, grid = B.grid;
+    for (let i = 0; i < A.points.length; i += 2) {
+      const x = A.points[i], y = A.points[i + 1];
+      const u = Math.floor((c * x - s * y + tx + half) * inverse);
+      const v = Math.floor((s * x + c * y + ty + half) * inverse);
+      if (u < 0 || v < 0 || u >= grid || v >= grid || !B.mask[v * grid + u]) continue;
+      if (booleanOnly) return true;
+      const ca = Math.cos(a.angle), sa = Math.sin(a.angle);
+      return { x: a.x + ca * x - sa * y, y: a.y + sa * x + ca * y };
+    }
+    return null;
+  }
+  function contact(a, b, booleanOnly = false) {
+    if (!a.shape || !b.shape) return null;
+    const radius = a.shape.radius + b.shape.radius;
+    const dx = a.x - b.x, dy = a.y - b.y;
+    if (dx * dx + dy * dy > radius * radius) return null;
+    // Symmetric sampling prevents thin strokes from disappearing between cells.
+    const first = a.shape.points.length <= b.shape.points.length ? a : b;
+    const second = first === a ? b : a;
+    return samplesContact(first, second, booleanOnly) || samplesContact(second, first, booleanOnly);
+  }
+  function separate(a, b, nx, ny) {
+    // Resolve the actual overlapping glyphs, NOT their bounding circles.
+    let low = 0, high = a.shape.radius + b.shape.radius + 1;
+    const ax = a.x, ay = a.y, bx = b.x, by = b.y;
+    for (let i = 0; i < 8; i++) {
+      const shift = (low + high) / 2;
+      a.x = ax - nx * shift / 2; a.y = ay - ny * shift / 2;
+      b.x = bx + nx * shift / 2; b.y = by + ny * shift / 2;
+      if (contact(a, b, true)) low = shift; else high = shift;
+    }
+    a.x = ax - nx * (high + 0.1) / 2; a.y = ay - ny * (high + 0.1) / 2;
+    b.x = bx + nx * (high + 0.1) / 2; b.y = by + ny * (high + 0.1) / 2;
+  }
+  function wallContact(t, cx = 500, cy = 350, radius = 290) {
+    const dx = t.x - cx, dy = t.y - cy;
+    if (Math.hypot(dx, dy) + t.shape.radius <= radius) return null;
+    const c = Math.cos(t.angle), s = Math.sin(t.angle), points = t.shape.edge;
+    let depth = 0, result = null;
+    for (let i = 0; i < points.length; i += 2) {
+      const x = dx + c * points[i] - s * points[i + 1];
+      const y = dy + s * points[i] + c * points[i + 1];
+      const distance = Math.hypot(x, y);
+      if (distance + CELL / 2 - radius > depth) {
+        depth = distance + CELL / 2 - radius;
+        result = { depth, nx: x / distance, ny: y / distance, x: x + cx, y: y + cy };
+      }
+    }
+    return result;
+  }
+  window.GlyphShapes = Object.freeze({ normalize, prepare, contact, separate, wallContact, font: FONT });
+})();
+
+</script>
+<script id="arena-rules">
+/* Arena rules are pure/seedable so traps can be checked without a browser.
+ * Pits pull toward their centres. Loss of ink support accumulates a visible
+ * slip meter; weight/stability/defense resist it, while recent impacts increase
+ * it. There is no random instant-death roll.
+ */
+(() => {
+  'use strict';
+  const clamp = (n, low = 0, high = 1) => Math.max(low, Math.min(high, n));
+  function createHoles(tops, random = Math.random) {
+    const holes = [];
+    function safe(hole) {
+      return Math.hypot(hole.x - 500, hole.y - 350) + hole.r < 265 &&
+        tops.every(t => Math.hypot(hole.x - t.x, hole.y - t.y) > hole.r + t.r + 64) &&
+        holes.every(h => Math.hypot(hole.x - h.x, hole.y - h.y) > hole.r + h.r + 48);
+    }
+    for (let i = 0; i < 400 && holes.length < 3; i++) {
+      const angle = random() * Math.PI * 2, distance = Math.sqrt(random()) * 218;
+      const hole = { id: `pit-${holes.length + 1}`, x: 500 + Math.cos(angle) * distance,
+        y: 350 + Math.sin(angle) * distance, r: 30 + random() * 7, influence: 120, active: false };
+      if (safe(hole)) holes.push(hole);
+    }
+    // Bounded deterministic fallback, also validated against both spawn shapes.
+    for (const [x, y] of [[500, 170], [500, 530], [500, 350], [365, 180], [635, 180],
+      [365, 520], [635, 520], [450, 150], [550, 550]]) {
+      if (holes.length === 3) break;
+      const h = { id: `pit-${holes.length + 1}`, x, y, r: 30, influence: 120, active: false };
+      if (safe(h)) holes.push(h);
+    }
+    return holes;
+  }
+  function inkOverlap(top, hole) {
+    const shape = top.shape, dx = top.x - hole.x, dy = top.y - hole.y;
+    if (Math.hypot(dx, dy) > shape.radius + hole.r) return 0;
+    const c = Math.cos(top.angle), s = Math.sin(top.angle), points = shape.points;
+    let inside = 0, samples = 0;
+    // Every fourth occupied cell is sufficient for support estimation, not
+    // collision. Narrow-phase top/top contact still checks every occupied cell.
+    for (let i = 0; i < points.length; i += 8) {
+      const x = dx + c * points[i] - s * points[i + 1];
+      const y = dy + s * points[i] + c * points[i + 1];
+      if (x * x + y * y <= hole.r * hole.r) inside++;
+      samples++;
+    }
+    return samples ? inside / samples : 0;
+  }
+  function affectHoles(top, holes, dt) {
+    top.danger = 0; top.holeId = null; top.status = '穩定';
+    let threat = null;
+    const center = top.analysis.centroid || { x: 0, y: 0 };
+    const c = Math.cos(top.angle), s = Math.sin(top.angle);
+    const centerX = top.x + c * center.x - s * center.y;
+    const centerY = top.y + s * center.x + c * center.y;
+    for (const hole of holes) {
+      if (!hole.active) continue;
+      const dx = hole.x - centerX, dy = hole.y - centerY;
+      const distance = Math.hypot(dx, dy), range = hole.influence;
+      if (distance >= range) continue;
+      const overlap = inkOverlap(top, hole);
+      const proximity = clamp((range - distance) / (range - hole.r));
+      const danger = clamp(proximity * 0.45 + overlap * 0.55);
+      if (!threat || danger > threat.danger) threat = { hole, dx, dy, distance, overlap, proximity, danger };
+    }
+    if (!threat) { top.capture = Math.max(0, top.capture - dt * 1.7); return null; }
+    const { hole, dx, dy, distance, overlap, proximity, danger } = threat;
+    const nx = distance > 0.001 ? dx / distance : 0, ny = distance > 0.001 ? dy / distance : 0;
+    const a = top.abilities;
+    const resistance = (a.weight / 100) ** 0.65 * (a.stability / 100) ** 0.8 * (a.defense / 100) ** 0.25;
+    top.vx += nx * (190 + 160 * overlap) * proximity ** 2 / resistance * dt;
+    top.vy += ny * (190 + 160 * overlap) * proximity ** 2 / resistance * dt;
+    const inward = top.vx * nx + top.vy * ny;
+    const tangent = Math.sqrt(Math.max(0, top.vx * top.vx + top.vy * top.vy - inward * inward));
+    const recovering = Math.max(0, -inward);
+    const hitBoost = clamp(top.lastHit / 0.9);
+    if (overlap > 0.15 && distance < hole.r + top.r * 0.35) {
+      const slip = ((overlap - 0.15) * 2 + Math.max(0, inward) / 380 +
+        hitBoost * 0.6 - recovering / 180 - tangent / 600) / resistance;
+      top.capture = clamp(top.capture + dt * slip);
+    } else top.capture = Math.max(0, top.capture - dt * 1.3);
+    top.danger = danger; top.holeId = hole.id;
+    top.status = top.capture > 0.2 ? '滑落危險' : '洞口牽引';
+    if (top.capture >= 1 && overlap > 0.28 && distance < hole.r + top.r * 0.2) return hole;
+    return null;
+  }
+  function impact(attacker, defender, closing, dash) {
+    const attack = attacker.abilities, defense = defender.abilities;
+    const damage = clamp((3 + closing / 42) * (attack.attack / defense.defense) *
+      (dash ? 1.3 : 0.78), 1, 24);
+    const resistance = (defense.weight / 100) * (0.6 + defense.defense / 250) *
+      (0.75 + defense.stability / 400);
+    const kick = clamp((closing * 0.6 + 60) * (attack.knockback / 100) *
+      (dash ? 1.25 : 1) / resistance, 28, 560);
+    return { damage, kick };
+  }
+  window.ArenaRules = Object.freeze({ createHoles, inkOverlap, affectHoles, impact });
+})();
+
+</script>
+<script id="game-engine">
+/* 字旋對決 — 原生、零依賴遊戲引擎。成品會將此檔內嵌於 index.html。
+ * 世界固定為 1000 × 700，使用 120 Hz 固定物理步進與 RAF 繪圖。
+ * UI 僅讀取 snapshot；開始、暫停、音效與輸入皆透過公開方法。
+ */
+(() => {
+  'use strict';
+  window.createGlyphGame = function createGlyphGame(options = {}) {
+    const STORE = 'glyph-arena-v1';
+    const STEP = 1 / 120;
+    const keys = { x: 0, y: 0 };
+    let audio = null, frame = 0, previous = 0, accumulator = 0;
+    let destroyed = false, aiTimer = 0, collisionTimer = 0;
+    let aiTarget = { x: 350, y: 350 };
+    const stats = { wins: 0, streak: 0, best: 0 };
+    const glyphConfig = {
+      player: {
+        text: document.getElementById('pGlyph')?.value || '旋',
+        fallback: document.getElementById('pFallback')?.value || '●',
+      },
+      enemy: {
+        text: document.getElementById('eGlyph')?.value || '破',
+        fallback: document.getElementById('eFallback')?.value || '★',
+      },
+    };
+    let sound = false;
+    // 隱私模式與 file:// 的 localStorage 可能拋錯；不影響遊戲。
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORE) || 'null');
+      if (saved && typeof saved === 'object') {
+        for (const key of Object.keys(stats)) {
+          if (Number.isSafeInteger(saved[key]) && saved[key] >= 0) stats[key] = saved[key];
+        }
+        sound = saved.sound === true;
+        for (const side of ['player', 'enemy']) {
+          if (saved.glyphs && saved.glyphs[side]) {
+            const config = saved.glyphs[side];
+            if (typeof config.text === 'string') glyphConfig[side].text = window.GlyphShapes.normalize(config.text);
+            if (typeof config.fallback === 'string') glyphConfig[side].fallback = window.GlyphShapes.normalize(config.fallback);
+          }
+        }
+      }
+    } catch (_) { /* 儲存不可用時保留記憶體中的紀錄。 */ }
+    function save() {
+      try { localStorage.setItem(STORE, JSON.stringify({ ...stats, sound, glyphs: glyphConfig })); }
+      catch (_) { /* 離線或禁用儲存時仍可遊玩。 */ }
+    }
+    function top(player) {
+      const config = glyphConfig[player ? 'player' : 'enemy'];
+      const selection = window.GlyphShapes.prepare(config.text, config.fallback);
+      const profile = selection.usedFallback || !selection.shape.analysis.valid
+        ? window.GlyphAnalysis.balanced('無法分析原字元，採用替代字形與均衡能力。')
+        : selection.shape;
+      return {
+        x: player ? 350 : 650, y: 350, vx: 0, vy: 0, r: selection.shape.radius,
+        hp: 100, rpm: 3600, angle: 0, cooldown: 0, dashTime: 0,
+        hit: 0, wallTimer: 0, trail: [],
+        color: player ? '#64edcf' : '#ff786a',
+        glyph: selection.text, shape: selection.shape, selection,
+        analysis: profile.analysis, abilities: { ...profile.abilities },
+        status: '穩定', danger: 0, capture: 0, holeId: null, fall: null,
+        lastHit: 0, warningTimer: 0,
+        name: selection.text + (player ? '・玩家' : '・挑戰者'),
+      };
+    }
+    const state = {
+      mode: 'menu', time: 60, elapsed: 0, player: top(true), enemy: top(false),
+      particles: [], labels: [], result: null, stats, sound, shake: 0, glyphs: glyphConfig,
+    };
+    state.holes = window.ArenaRules.createHoles([state.player, state.enemy]);
+    function emit(type, detail = {}) {
+      if (options.onEvent) options.onEvent({ type, ...detail });
+    }
+    // 音訊只能由使用者手勢建立；瀏覽器不支援時靜默停用音訊而非遊戲。
+    function unlockAudio() {
+      if (!state.sound) return;
+      try {
+        const Audio = window.AudioContext || window.webkitAudioContext;
+        if (!audio && Audio) audio = new Audio();
+        if (audio && audio.state === 'suspended') audio.resume().catch(() => {});
+      } catch (_) { audio = null; }
+    }
+    function tone(frequency, duration, type = 'sine', volume = 0.05, end = frequency) {
+      if (!state.sound || !audio || audio.state !== 'running') return;
+      try {
+        const oscillator = audio.createOscillator(), gain = audio.createGain();
+        const now = audio.currentTime;
+        oscillator.type = type;
+        oscillator.frequency.setValueAtTime(frequency, now);
+        oscillator.frequency.exponentialRampToValueAtTime(Math.max(20, end), now + duration);
+        gain.gain.setValueAtTime(volume, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        oscillator.connect(gain); gain.connect(audio.destination);
+        oscillator.start(now); oscillator.stop(now + duration);
+      } catch (_) { /* 音效失敗不得中斷模擬。 */ }
+    }
+    function clearInput() { keys.x = keys.y = 0; }
+    function burst(x, y, color, strength = 1) {
+      for (let i = 0; i < 18 * strength; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const speed = 80 + Math.random() * 230 * strength;
+        const life = 0.25 + Math.random() * 0.4;
+        state.particles.push({ x, y, vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed, life, maxLife: life, color });
+      }
+      // 特效上限避免持續碰撞導致粒子無限增長。
+      if (state.particles.length > 180) state.particles.splice(0, state.particles.length - 180);
+    }
+    function label(x, y, text) { state.labels.push({ x, y, text, life: 0.9 }); }
+    function finish(win, reason, draw = false) {
+      if (state.mode !== 'playing') return;
+      state.mode = 'result';
+      state.result = { win, draw, reason };
+      clearInput(); accumulator = 0;
+      if (win) {
+        stats.wins++; stats.streak++;
+        stats.best = Math.max(stats.best, stats.streak);
+      } else stats.streak = 0;
+      save();
+      tone(win ? 660 : 220, 0.55, 'triangle', 0.08, win ? 1320 : 70);
+      emit('end', state.result);
+    }
+    function start() {
+      unlockAudio(); clearInput();
+      Object.assign(state, { mode: 'playing', time: 60, elapsed: 0,
+        player: top(true), enemy: top(false), particles: [], labels: [],
+        result: null, shake: 0 });
+      state.holes = window.ArenaRules.createHoles([state.player, state.enemy]);
+      aiTimer = 0; collisionTimer = 0; accumulator = 0; previous = performance.now();
+      aiTarget = { x: 350, y: 350 };
+      tone(320, 0.25, 'triangle', 0.06, 960);
+      emit('start');
+    }
+    function dashTop(t, dx, dy, player) {
+      if (state.mode !== 'playing' || t.cooldown > 0 || state.player.fall || state.enemy.fall) return;
+      let length = Math.hypot(dx, dy);
+      if (length < 0.1) {
+        const other = player ? state.enemy : state.player;
+        dx = other.x - t.x; dy = other.y - t.y;
+        length = Math.hypot(dx, dy) || 1;
+      }
+      const speed = 570 * t.abilities.speed / 100;
+      t.vx = dx / length * speed; t.vy = dy / length * speed;
+      // Same cooldown and ability formula for both sides.
+      t.cooldown = 2.6; t.dashTime = 0.24;
+      t.rpm = Math.min(4200, t.rpm + 180);
+      burst(t.x, t.y, t.color, 0.55);
+      tone(180, 0.14, 'sawtooth', 0.035, 650);
+      emit('dash', { player });
+    }
+    function advanceTop(t, dx, dy, dt) {
+      t.cooldown = Math.max(0, t.cooldown - dt);
+      t.dashTime = Math.max(0, t.dashTime - dt);
+      t.hit = Math.max(0, t.hit - dt);
+      t.wallTimer = Math.max(0, t.wallTimer - dt);
+      t.lastHit = Math.max(0, t.lastHit - dt);
+      t.warningTimer = Math.max(0, t.warningTimer - dt);
+      const length = Math.hypot(dx, dy);
+      if (length > 1) { dx /= length; dy /= length; }
+      const acceleration = (t.dashTime > 0 ? 200 : 720) * t.abilities.speed / 100;
+      t.vx += dx * acceleration * dt; t.vy += dy * acceleration * dt;
+      const drag = Math.exp(-(t.dashTime > 0 ? 0.65 : 3.1) * dt);
+      t.vx *= drag; t.vy *= drag;
+      t.x += t.vx * dt; t.y += t.vy * dt;
+      // 每秒自然失去轉速；撞擊額外耗損，60 秒時依耐久與轉速判定。
+      t.rpm = Math.max(0, t.rpm - 35 * dt);
+      t.angle += (t.rpm / 60) * Math.PI * 2 * dt * 0.16;
+      const wall = window.GlyphShapes.wallContact(t);
+      if (wall) {
+        const { nx, ny } = wall;
+        const outward = t.vx * nx + t.vy * ny;
+        const rimResistance = Math.sqrt(t.abilities.weight * t.abilities.stability) / 100;
+        if (outward > 220 * rimResistance && t.lastHit > 0) {
+          beginFall(t, 'ringout', t.x + nx * 90, t.y + ny * 90);
+          return;
+        }
+        t.x -= nx * wall.depth; t.y -= ny * wall.depth;
+        if (outward > 0) {
+          t.vx -= 1.65 * outward * nx; t.vy -= 1.65 * outward * ny;
+          if (outward > 140 && t.wallTimer <= 0) {
+            t.hp = Math.max(0, t.hp - 2 * 100 / t.abilities.defense);
+            t.rpm = Math.max(0, t.rpm - 40);
+            t.wallTimer = 0.55; burst(wall.x, wall.y, t.color, 0.5);
+            emit('wall');
+          }
+        }
+      }
+    }
+    function collide() {
+      const p = state.player, e = state.enemy;
+      let dx = e.x - p.x, dy = e.y - p.y;
+      const distance = Math.hypot(dx, dy);
+      if (distance >= p.r + e.r) return;
+      const contact = window.GlyphShapes.contact(p, e);
+      if (!contact) return; // 空白、環內孔洞及尚未接觸的尖角皆不受傷、不反彈。
+      const safeDistance = distance || 1;
+      if (!distance) { dx = 1; dy = 0; }
+      const nx = dx / safeDistance, ny = dy / safeDistance;
+      window.GlyphShapes.separate(p, e, nx, ny);
+      const closing = (p.vx - e.vx) * nx + (p.vy - e.vy) * ny;
+      if (closing <= 0) return;
+      const playerDash = p.dashTime > 0, enemyDash = e.dashTime > 0;
+      const playerImpact = window.ArenaRules.impact(e, p, closing, enemyDash);
+      const enemyImpact = window.ArenaRules.impact(p, e, closing, playerDash);
+      p.vx -= nx * playerImpact.kick; p.vy -= ny * playerImpact.kick;
+      e.vx += nx * enemyImpact.kick; e.vy += ny * enemyImpact.kick;
+      p.lastHit = e.lastHit = 1.2;
+      if (collisionTimer > 0 || closing < 25) return;
+      collisionTimer = 0.24;
+      const pDamage = playerImpact.damage * (playerDash && !enemyDash ? 0.4 : 1);
+      const eDamage = enemyImpact.damage * (enemyDash && !playerDash ? 0.4 : 1);
+      p.hp = Math.max(0, p.hp - pDamage); e.hp = Math.max(0, e.hp - eDamage);
+      p.rpm = Math.max(0, p.rpm - pDamage * 15);
+      e.rpm = Math.max(0, e.rpm - eDamage * 15);
+      p.hit = e.hit = 0.18; state.shake = Math.min(10, closing / 70);
+      burst(contact.x, contact.y, '#fff3c2', playerDash || enemyDash ? 1.5 : 1);
+      const resisting = p.abilities.stability > 115 || e.abilities.stability > 115;
+      label(contact.x, contact.y - 40, resisting && !playerDash && !enemyDash ? '抵抗！'
+        : playerDash ? '重擊！' : enemyDash ? '受到衝擊！' : '碰撞！');
+      if (resisting) emit('resist', { player: p.abilities.stability > 115, escaped: false });
+      tone(130, 0.13, 'square', 0.045, 40);
+      emit('hit', { damage: eDamage, playerDash, enemyDash });
+    }
+    function beginFall(t, kind, x, y) {
+      if (t.fall || state.mode !== 'playing') return;
+      t.fall = { kind, x, y, progress: 0 };
+      t.status = kind === 'hole' ? '落洞' : '出界';
+      t.capture = 1; t.danger = 1; t.trail = [];
+      clearInput();
+      burst(t.x, t.y, t.color, 1.4);
+      label(t.x, t.y - 45, kind === 'hole' ? '落洞！' : '出界！');
+      tone(180, 0.6, 'sine', 0.065, 30);
+      emit(kind === 'hole' ? 'fall' : 'ringout', { player: t === state.player });
+    }
+    function animateFalls(dt) {
+      const falling = [state.player, state.enemy].filter(t => t.fall);
+      if (!falling.length) return false;
+      for (const t of falling) {
+        const f = t.fall;
+        f.progress = Math.min(1, f.progress + dt / 0.7);
+        t.x += (f.x - t.x) * Math.min(1, dt * 7);
+        t.y += (f.y - t.y) * Math.min(1, dt * 7);
+        t.angle += dt * 8; t.vx = t.vy = 0;
+      }
+      if (falling.every(t => t.fall.progress >= 1)) {
+        const p = state.player, e = state.enemy;
+        if (p.fall && e.fall) finish(false, '雙方同時出局', true);
+        else {
+          const lost = p.fall ? p : e;
+          const reason = lost.fall.kind === 'hole' ? '滑入洞口，失去盤面支撐' : '被擊退至盤外';
+          finish(lost === e, (lost === e ? '對手' : '你') + reason);
+        }
+      }
+      return true;
+    }
+    function handleTraps(t, dt) {
+      if (t.fall) return;
+      const wasNear = t.holeId;
+      const wasCaptured = t.capture;
+      const hole = window.ArenaRules.affectHoles(t, state.holes, dt);
+      if (!t.holeId && wasNear && wasCaptured > 0.15) {
+        label(t.x, t.y - 45, '成功脫困！');
+        tone(450, 0.14, 'triangle', 0.04, 800);
+        emit('resist', { player: t === state.player, escaped: true });
+      }
+      if (t.danger > 0.18 && !wasNear && t.warningTimer <= 0) {
+        t.warningTimer = 2;
+        label(t.x, t.y - 50, '靠近洞口！');
+        tone(420, 0.09, 'triangle', 0.035, 280); emit('danger');
+      }
+      if (hole) beginFall(t, 'hole', hole.x, hole.y);
+    }
+    function simulate(dt) {
+      state.elapsed += dt; state.time = Math.max(0, 60 - state.elapsed);
+      if (animateFalls(dt)) return;
+      for (const h of state.holes) h.active = state.elapsed >= 3;
+      collisionTimer = Math.max(0, collisionTimer - dt);
+      aiTimer -= dt;
+      const p = state.player, e = state.enemy;
+      // AI 以有限頻率觀察玩家，目標帶有偏差，不會完美預判。
+      if (aiTimer <= 0) {
+        aiTimer = 0.32 + Math.random() * 0.2;
+        aiTarget = { x: p.x + (Math.random() - 0.5) * 110,
+          y: p.y + (Math.random() - 0.5) * 110 };
+        // AI only reacts at its normal observation cadence and uses the same
+        // traps/abilities as the player. It can misjudge a rim or be knocked in.
+        for (const hole of state.holes) {
+          const dx = e.x - hole.x, dy = e.y - hole.y, d = Math.hypot(dx, dy);
+          if (hole.active && d < hole.r + e.r + 30 && d > 0) {
+            aiTarget.x += dx / d * 145; aiTarget.y += dy / d * 145;
+          }
+        }
+        if (Math.hypot(p.x - e.x, p.y - e.y) < 280 &&
+            e.cooldown <= 0 && Math.random() < 0.32) {
+          if (e.capture > 0.2 && e.holeId) {
+            const h = state.holes.find(hole => hole.id === e.holeId);
+            dashTop(e, e.x - h.x, e.y - h.y, false);
+          } else dashTop(e, aiTarget.x - e.x, aiTarget.y - e.y, false);
+        }
+      }
+      const ax = aiTarget.x - e.x, ay = aiTarget.y - e.y;
+      const al = Math.hypot(ax, ay) || 1;
+      advanceTop(p, keys.x, keys.y, dt);
+      advanceTop(e, ax / al, ay / al, dt);
+      if (!p.fall && !e.fall) collide();
+      handleTraps(p, dt); handleTraps(e, dt);
+      if (p.fall || e.fall) return;
+      const playerLost = p.hp <= 0 || p.rpm <= 0;
+      const enemyLost = e.hp <= 0 || e.rpm <= 0;
+      if (playerLost && enemyLost) finish(false, '雙方同時停止旋轉', true);
+      else if (enemyLost) finish(true, e.hp <= 0 ? '對手耐久耗盡！' : '對手停止旋轉！');
+      else if (playerLost) finish(false, p.hp <= 0 ? '你的耐久已耗盡' : '你的陀螺停止旋轉');
+      else if (state.time <= 0) {
+        const difference = p.hp + p.rpm / 100 - e.hp - e.rpm / 100;
+        finish(difference > 0.1, '時間到，依耐久與剩餘轉速判定', Math.abs(difference) <= 0.1);
+      }
+    }
+    function animateEffects(dt) {
+      state.shake = Math.max(0, state.shake - dt * 32);
+      for (const t of [state.player, state.enemy]) {
+        for (const point of t.trail) point.life -= dt;
+        t.trail = t.trail.filter(point => point.life > 0);
+        if (state.mode === 'playing') {
+          t.trail.push({ x: t.x, y: t.y, angle: t.angle, life: 0.26 });
+          if (t.trail.length > 22) t.trail.shift();
+        }
+      }
+      for (const particle of state.particles) {
+        particle.x += particle.vx * dt; particle.y += particle.vy * dt;
+        particle.life -= dt;
+      }
+      state.particles = state.particles.filter(particle => particle.life > 0);
+      for (const item of state.labels) { item.y -= dt * 24; item.life -= dt; }
+      state.labels = state.labels.filter(item => item.life > 0);
+    }
+    function tick(now) {
+      if (destroyed) return;
+      const dt = Math.min(0.05, Math.max(0, (now - (previous || now)) / 1000));
+      previous = now;
+      if (state.mode === 'playing') {
+        accumulator += dt;
+        while (accumulator >= STEP && state.mode === 'playing') {
+          simulate(STEP); accumulator -= STEP;
+        }
+        if (accumulator < 0) accumulator = 0;
+        animateEffects(dt);
+      } else if (state.mode === 'menu') {
+        state.player.angle += dt * 4.5; state.enemy.angle -= dt * 4;
+      } else if (state.mode === 'result') animateEffects(dt);
+      if (options.onUpdate) options.onUpdate(state);
+      frame = requestAnimationFrame(tick);
+    }
+    frame = requestAnimationFrame(tick);
+    return {
+      start,
+      setGlyph(side, text, fallback) {
+        if (state.mode !== 'menu' || !Object.hasOwn(glyphConfig, side)) return null;
+        const old = glyphConfig[side];
+        glyphConfig[side] = {
+          text: window.GlyphShapes.normalize(text),
+          fallback: window.GlyphShapes.normalize(fallback === undefined ? old.fallback : fallback),
+        };
+        state[side] = top(side === 'player');
+        state.holes = window.ArenaRules.createHoles([state.player, state.enemy]);
+        save();
+        return state[side].selection;
+      },
+      pause() {
+        if (state.mode !== 'playing') return;
+        state.mode = 'paused'; clearInput(); accumulator = 0; emit('pause');
+      },
+      resume() {
+        if (state.mode !== 'paused') return;
+        unlockAudio(); clearInput(); accumulator = 0;
+        previous = performance.now(); state.mode = 'playing';
+      },
+      home() {
+        state.mode = 'menu'; state.result = null; state.time = 60; state.elapsed = 0;
+        state.player = top(true); state.enemy = top(false);
+        state.holes = window.ArenaRules.createHoles([state.player, state.enemy]);
+        state.particles = []; state.labels = []; state.shake = 0;
+        clearInput(); accumulator = 0;
+      },
+      dash() { unlockAudio(); dashTop(state.player, keys.x, keys.y, true); },
+      setInput(x, y) {
+        keys.x = Number.isFinite(x) ? Math.max(-1, Math.min(1, x)) : 0;
+        keys.y = Number.isFinite(y) ? Math.max(-1, Math.min(1, y)) : 0;
+      },
+      setSound(enabled) {
+        sound = state.sound = !!enabled;
+        if (sound) unlockAudio();
+        else if (audio && audio.state === 'running') audio.suspend().catch(() => {});
+        save();
+      },
+      getSnapshot() { return state; },
+      destroy() {
+        destroyed = true; clearInput(); cancelAnimationFrame(frame);
+        if (audio) audio.close().catch(() => {});
+      },
+    };
+  };
+})();
+
+</script>
+<!-- GLYPH_SOURCES_END -->
+<script id="glyph-ui">
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const cv=$('c'),ctx=cv.getContext('2d');
+const W=1000,H=700,CX=500,CY=350,AR=290,RO=315;
+const COL={p:'#3fe0c5',e:'#ff5a4a',gold:'#f2b84b',paper:'#f3e9d2'};
+let dpr=1,scale=1,ox=0,oy=0,snap=null,lastMode='',t0=performance.now();
+
+// Resize canvas to device pixels; fit world into viewport
+function resize(){dpr=Math.min(window.devicePixelRatio||1,2);const w=innerWidth,h=innerHeight;
+  cv.width=w*dpr;cv.height=h*dpr;const pad=w<760?0.98:0.92;scale=Math.min(w/W,(h-40)/H)*pad;ox=(w-W*scale)/2;oy=(h-H*scale)/2+(w<760?-30:10);}
+addEventListener('resize',resize);resize();
+
+// Static background glyph field (decoration)
+const BG='旋破轉撞衝字陀螺勝負力速風雷火'.split('');
+const field=Array.from({length:26},(_,i)=>({g:BG[i%BG.length],a:(i*2.399)%6.283,d:330+((i*53)%180),s:14+(i*7)%22,sp:(i%2?1:-1)*(0.02+(i%5)*.01)}));
+
+// Demo tops for when no snapshot (menu without engine)
+function demoTop(t,ph,glyph,color){const a=t*.6+ph;return{x:CX+Math.cos(a)*140,y:CY+Math.sin(a*1.3)*90,r:30,hp:100,rpm:3600,angle:t*14,trail:[],glyph,color,hit:0};}
+
+function drawArena(t){
+  ctx.save();
+  // outer glyph ring
+  field.forEach(f=>{const a=f.a+t*f.sp;ctx.globalAlpha=.09;ctx.fillStyle=COL.paper;ctx.font=`900 ${f.s}px ${getComputedStyle(document.body).getPropertyValue('--serif')||'serif'}`;ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(f.g,CX+Math.cos(a)*f.d,CY+Math.sin(a)*f.d*.8);});
+  ctx.globalAlpha=1;
+  // ringout danger zone
+  ctx.beginPath();ctx.arc(CX,CY,RO,0,7);ctx.fillStyle='rgba(255,90,74,.08)';ctx.fill();
+  ctx.setLineDash([4,10]);ctx.strokeStyle='rgba(255,90,74,.45)';ctx.lineWidth=2;ctx.stroke();ctx.setLineDash([]);
+  // dish
+  const g=ctx.createRadialGradient(CX,CY-40,20,CX,CY,AR);g.addColorStop(0,'#2c2645');g.addColorStop(1,'#1a1729');
+  ctx.beginPath();ctx.arc(CX,CY,AR,0,7);ctx.fillStyle=g;ctx.fill();
+  // grid clipped
+  ctx.save();ctx.clip();ctx.strokeStyle='rgba(243,233,210,.05)';ctx.lineWidth=1;
+  for(let x=CX-AR;x<=CX+AR;x+=29){ctx.beginPath();ctx.moveTo(x,CY-AR);ctx.lineTo(x,CY+AR);ctx.stroke();}
+  for(let y=CY-AR;y<=CY+AR;y+=29){ctx.beginPath();ctx.moveTo(CX-AR,y);ctx.lineTo(CX+AR,y);ctx.stroke();}
+  ctx.restore();
+  // concentric rings + tick marks
+  [80,160,230].forEach(r=>{ctx.beginPath();ctx.arc(CX,CY,r,0,7);ctx.strokeStyle='rgba(243,233,210,.08)';ctx.stroke();});
+  for(let i=0;i<72;i++){const a=i/72*Math.PI*2+t*.05,l=i%6?6:14;ctx.beginPath();ctx.moveTo(CX+Math.cos(a)*(AR-l),CY+Math.sin(a)*(AR-l));ctx.lineTo(CX+Math.cos(a)*AR,CY+Math.sin(a)*AR);ctx.strokeStyle=i%6?'rgba(243,233,210,.2)':'rgba(242,184,75,.7)';ctx.lineWidth=i%6?1:2;ctx.stroke();}
+  ctx.beginPath();ctx.arc(CX,CY,AR,0,7);ctx.strokeStyle=COL.gold;ctx.lineWidth=4;ctx.stroke();
+  // center seal
+  ctx.globalAlpha=.06;ctx.fillStyle=COL.paper;ctx.font='900 180px serif';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('鬥',CX,CY+6);ctx.globalAlpha=1;
+  ctx.restore();
+}
+
+function drawTop(p,col){
+  if(!p)return;
+  // Draw the exact cached ink used by physics. No filled disk hides ring holes.
+  const shape=p.shape||window.GlyphShapes.prepare(p.glyph||'●').shape;
+  const size=shape.size;
+  if(p.fall){const k=Math.max(0,Math.min(1,p.fall.progress||0)),ring=p.fall.kind==='ringout';
+    ctx.save();ctx.translate(p.x,p.y);ctx.rotate((p.angle||0)+k*k*6);const sc=ring?1-k*.55:1-k*.88;ctx.scale(sc,sc);ctx.globalAlpha=1-k*.92;
+    ctx.drawImage(shape.canvas,-size/2,-size/2,size,size);ctx.restore();
+    ctx.save();ctx.globalAlpha=1-k;ctx.font='900 18px "Songti TC",serif';ctx.textAlign='center';ctx.fillStyle=ring?COL.gold:'#ff786a';ctx.fillText(ring?'出界':'墜坑',p.fall.x,p.fall.y-34-k*20);ctx.restore();return;}
+  (p.trail||[]).forEach(tr=>{ctx.save();ctx.translate(tr.x,tr.y);ctx.rotate(tr.angle||0);ctx.globalAlpha=Math.max(0,tr.life)*.32;ctx.drawImage(shape.canvas,-size/2,-size/2,size,size);ctx.restore();});
+  ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.angle||0);
+  ctx.shadowColor=p.hit>0?COL.gold:col;ctx.shadowBlur=p.hit>0?14:6;
+  ctx.drawImage(shape.canvas,-size/2,-size/2,size,size);
+  ctx.restore();
+}
+
+const HL='ABC';
+function drawHoles(s,t){
+  const hs=(s&&s.holes)||[];if(!hs.length)return;const menu=s.mode==='menu',grace=!menu&&(s.elapsed||0)<3;
+  hs.forEach((h,i)=>{ctx.save();const on=h.active&&!menu;
+    // influence field
+    const inf=h.influence||h.r*3;const fg=ctx.createRadialGradient(h.x,h.y,h.r,h.x,h.y,inf);
+    fg.addColorStop(0,on?'rgba(255,90,74,.16)':'rgba(242,184,75,.06)');fg.addColorStop(1,'rgba(0,0,0,0)');
+    ctx.beginPath();ctx.arc(h.x,h.y,inf,0,7);ctx.fillStyle=fg;ctx.fill();
+    ctx.setLineDash(on?[3,7]:[2,10]);ctx.lineDashOffset=on?-t*20:0;ctx.strokeStyle=on?'rgba(255,90,74,.4)':'rgba(242,184,75,.25)';ctx.lineWidth=1;ctx.stroke();ctx.setLineDash([]);
+    // pit opening
+    const g=ctx.createRadialGradient(h.x,h.y+4,1,h.x,h.y,h.r);g.addColorStop(0,'#05040a');g.addColorStop(.75,'#0b0913');g.addColorStop(1,'#2a2238');
+    ctx.beginPath();ctx.arc(h.x,h.y,h.r,0,7);ctx.fillStyle=g;ctx.fill();
+    ctx.lineWidth=3;ctx.strokeStyle=on?'#ff5a4a':'rgba(242,184,75,.75)';ctx.stroke();
+    ctx.beginPath();ctx.arc(h.x,h.y,h.r+4,Math.PI*1.1,Math.PI*1.9);ctx.strokeStyle='rgba(243,233,210,.25)';ctx.lineWidth=1.5;ctx.stroke();
+    if(!on){ctx.save();ctx.beginPath();ctx.arc(h.x,h.y,h.r-2,0,7);ctx.clip();ctx.strokeStyle='rgba(242,184,75,.3)';ctx.lineWidth=2;for(let k=-h.r*2;k<h.r*2;k+=9){ctx.beginPath();ctx.moveTo(h.x+k,h.y-h.r);ctx.lineTo(h.x+k+h.r*2,h.y+h.r);ctx.stroke();}ctx.restore();}
+    ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='900 13px "Songti TC",serif';ctx.fillStyle=on?'#ff786a':COL.gold;
+    const lab=menu?'坑 '+HL[i%3]+' · 預覽':grace?'坑 '+HL[i%3]+' · '+Math.max(0,3-(s.elapsed||0)).toFixed(1)+'s':'坑 '+HL[i%3];
+    ctx.lineWidth=4;ctx.strokeStyle='#14121f';ctx.strokeText(lab,h.x,h.y-h.r-12);ctx.fillText(lab,h.x,h.y-h.r-12);
+    ctx.restore();});
+}
+function drawDanger(p,s,col,t){
+  if(!p||p.fall||!s.holes)return;const d=p.danger||0,c=p.capture||0;if(d<=0&&c<=0)return;
+  const h=s.holes.find(q=>q.id===p.holeId);ctx.save();
+  if(h){const dx=h.x-p.x,dy=h.y-p.y,L=Math.hypot(dx,dy)||1,ux=dx/L,uy=dy/L,r0=(p.r||30)+6,len=r0+14+40*Math.max(d,c);
+    ctx.strokeStyle=c>0?'#ff5a4a':COL.gold;ctx.fillStyle=ctx.strokeStyle;ctx.globalAlpha=.4+.6*Math.max(d,c);ctx.lineWidth=2+3*d;
+    ctx.beginPath();ctx.moveTo(p.x+ux*r0,p.y+uy*r0);ctx.lineTo(p.x+ux*len,p.y+uy*len);ctx.stroke();
+    ctx.beginPath();ctx.moveTo(p.x+ux*(len+10),p.y+uy*(len+10));ctx.lineTo(p.x+ux*len-uy*7,p.y+uy*len+ux*7);ctx.lineTo(p.x+ux*len+uy*7,p.y+uy*len-ux*7);ctx.fill();}
+  if(c>0){ctx.globalAlpha=.5+.5*Math.sin(t*18)*.5+.25;ctx.beginPath();ctx.arc(p.x,p.y,(p.r||30)+8,-Math.PI/2,-Math.PI/2+Math.PI*2*c);ctx.strokeStyle='#ff5a4a';ctx.lineWidth=4;ctx.stroke();
+    ctx.globalAlpha=1;ctx.font='900 14px "Songti TC",serif';ctx.textAlign='center';ctx.lineWidth=4;ctx.strokeStyle='#14121f';const tx='被捕捉 · 反向衝刺';ctx.strokeText(tx,p.x,p.y+(p.r||30)+24);ctx.fillStyle='#ff786a';ctx.fillText(tx,p.x,p.y+(p.r||30)+24);}
+  ctx.restore();
+}
+function render(){
+  const now=performance.now(),t=(now-t0)/1000,s=snap;
+  ctx.setTransform(1,0,0,1,0,0);ctx.fillStyle='#14121f';ctx.fillRect(0,0,cv.width,cv.height);
+  const sh=s&&s.shake?s.shake:0,sx=(Math.random()-.5)*sh,sy=(Math.random()-.5)*sh;
+  ctx.setTransform(dpr*scale,0,0,dpr*scale,dpr*(ox+sx*scale),dpr*(oy+sy*scale));
+  drawArena(t);
+  const menu=!s||s.mode==='menu';
+  const P=menu&&(!s||!s.player)?demoTop(t,0,'旋'):s.player, E=menu&&(!s||!s.enemy)?demoTop(t,Math.PI,'破'):s.enemy;
+  if(P&&E&&menu&&(!s||!s.player)){/* idle */}
+  if(s)drawHoles(s,t);
+  drawTop(P,COL.p);drawTop(E,COL.e);
+  if(s&&!menu){drawDanger(P,s,COL.p,t);drawDanger(E,s,COL.e,t);}
+  if(s){
+    (s.particles||[]).forEach(q=>{const k=q.maxLife?q.life/q.maxLife:q.life;ctx.globalAlpha=Math.max(0,Math.min(1,k));ctx.strokeStyle=q.color||COL.gold;ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(q.x,q.y);ctx.lineTo(q.x-(q.vx||0)*.03,q.y-(q.vy||0)*.03);ctx.stroke();});
+    ctx.globalAlpha=1;
+    (s.labels||[]).forEach(l=>{const k=Math.max(0,Math.min(1,l.life));ctx.globalAlpha=k;ctx.font='900 '+(22+10*(1-k))+'px "Songti TC",serif';ctx.textAlign='center';ctx.lineWidth=5;ctx.strokeStyle='#14121f';ctx.strokeText(l.text,l.x,l.y-(1-k)*30);ctx.fillStyle=COL.gold;ctx.fillText(l.text,l.x,l.y-(1-k)*30);});
+    ctx.globalAlpha=1;
+  }
+}
+
+// ---- UI sync ----
+const el={hud:$('hud'),pHp:$('pHp'),eHp:$('eHp'),pCd:$('pCd'),eCd:$('eCd'),pRpm:$('pRpm'),eRpm:$('eRpm'),pDash:$('pDash'),eDash:$('eDash'),time:$('time'),touch:$('touch'),dashB:$('dashB')};
+function setOv(m){$('ovMenu').classList.toggle('on',m==='menu');$('ovPause').classList.toggle('on',m==='paused');$('ovResult').classList.toggle('on',m==='result');
+  el.hud.classList.toggle('hidden',m==='menu');el.touch.classList.toggle('hidden',m!=='playing');$('bPause').textContent=m==='paused'?'繼續':'暫停';$('bPause').hidden=m==='menu'||m==='result';}
+function ui(s){
+  if(s.mode!==lastMode){lastMode=s.mode;setOv(s.mode);if(s.mode==='result')showResult(s);if(s.mode!=='playing')clearInput();}
+  const p=s.player||{},e=s.enemy||{};
+  for(const [id,t] of [['pSeal',p],['eSeal',e]]){if($(id).textContent!==t.glyph){$(id).textContent=t.glyph;$(id).style.fontSize=Array.from(t.glyph||'').length>1?'11px':'16px';}}
+  if(s.mode==='menu'){drawPreview('pPreview',p);drawPreview('ePreview',e);}
+  el.pHp.style.transform=`scaleX(${Math.max(0,p.hp||0)/100})`;el.eHp.style.transform=`scaleX(${Math.max(0,e.hp||0)/100})`;
+  el.pCd.style.transform=`scaleX(${1-Math.min(1,(p.cooldown||0)/2.6)})`;el.eCd.style.transform=`scaleX(${1-Math.min(1,(e.cooldown||0)/2.6)})`;
+  el.pRpm.textContent=Math.round(p.rpm||0)+' RPM';el.eRpm.textContent=Math.round(e.rpm||0)+' RPM';
+  el.pDash.textContent=p.cooldown>0?'衝刺 '+p.cooldown.toFixed(1)+'s':'衝刺 可用';el.eDash.textContent=e.cooldown>0?'衝刺 '+e.cooldown.toFixed(1)+'s':'衝刺 可用';
+  el.dashB.classList.toggle('cool',p.cooldown>0);
+  const tm=Math.max(0,Math.ceil(s.time||0));el.time.textContent=tm;el.time.classList.toggle('warn',tm<=10&&s.mode==='playing');
+  for(const [k,t] of [['p',p],['e',e]]){const A=abil(t),top2=AK.map((n,i)=>[n,A[n],AL[i]]).sort((a,b)=>b[1]-a[1]).slice(0,2);
+    const ab=top2.map(x=>x[2]+' <b>'+Math.round(x[1])+'</b>').join(' · ');const ak=$(k+'Ab');if(ak.dataset.v!==ab){ak.dataset.v=ab;ak.innerHTML=ab;}
+    const se=$(k+'St');let txt=t.status||'',cl='hst';if(t.fall)txt=t.fall.kind==='ringout'?'出界中':'墜入坑洞';
+    if(t.capture>0||t.fall)cl+=' c';else if(t.danger>0)cl+=' d';if(se.textContent!==txt)se.textContent=txt;if(se.className!==cl)se.className=cl;}
+  const ph=$('phase'),el2=s.elapsed||0;const pt=s.mode==='menu'?'':el2<3?'安全期 '+(3-el2).toFixed(1)+'s · 坑洞未開':'坑洞已開啟';
+  if(ph.textContent!==pt){ph.textContent=pt;ph.className=el2<3?'':'live';}
+  if(s.stats){$('sW').textContent=s.stats.wins;$('sS').textContent=s.stats.streak;$('sB').textContent=s.stats.best;}
+  $('bSound').textContent='音效 '+(s.sound?'開':'關');
+}
+function showResult(s){const r=s.result||{};$('rTitle').textContent=r.draw?'平手':r.win?'勝':'敗';$('rTitle').style.color=r.draw?COL.gold:r.win?COL.p:COL.e;
+  $('rKick').textContent=r.draw?'DRAW':r.win?'VICTORY':'DEFEAT';$('rReason').textContent=r.reason||'';
+  const st=s.stats||{};$('rStats').textContent=`勝場 ${st.wins||0} · 連勝 ${st.streak||0} · 最佳連勝 ${st.best||0} · Enter 再戰`;}
+
+// ---- Engine hookup ----
+let game=null;
+if(typeof window.createGlyphGame==='function'){
+  game=window.createGlyphGame({onUpdate(s){snap=s;ui(s);render();},onEvent(ev){if(!ev)return;
+    if((ev.type==='hit'||ev.type==='fall'||ev.type==='ringout')&&navigator.vibrate)try{navigator.vibrate(ev.type==='hit'?20:[40,30,80]);}catch(_){}
+    const me=ev.player===true,who=ev.player===undefined?'':me?'你':'對手';
+    if(ev.type==='ringout')flash('出界',who?who+'被擊出擂台':'',COL.gold);
+    else if(ev.type==='fall')flash('墜坑',who?who+'掉入坑洞':'',COL.e);
+    else if(ev.type==='resist'&&me)flash(ev.escaped?'脫困':'抵抗',ev.escaped?'反向衝刺成功':'穩定與重量抵消衝擊',COL.p);
+    else if(ev.type==='start')flash('三秒安全期','坑洞即將開啟',COL.p);}});
+}else{(function loop(){render();requestAnimationFrame(loop);})();}
+let flT=0;function flash(a,b,c){const f=$('flash');f.innerHTML='';f.append(a);if(b){const m=document.createElement('small');m.textContent=b;f.append(m);}f.style.color=c;f.classList.add('on');clearTimeout(flT);flT=setTimeout(()=>f.classList.remove('on'),1300);}
+const AK=['defense','weight','speed','attack','knockback','stability'],AL=['防禦','重量','速度','攻擊','擊退','穩定'];
+const KIND={round:'圓',angular:'銳',slender:'細',dense:'密',balanced:'衡'};
+function abil(t){const a=t&&(t.abilities||(t.shape&&t.shape.abilities));const o={};AK.forEach(k=>{const v=a&&Number(a[k]);o[k]=Number.isFinite(v)?Math.max(65,Math.min(135,v)):100;});return o;}
+function anal(t){return t&&(t.analysis||(t.shape&&t.shape.analysis))||null;}
+const TIP={round:'圓潤難推，穩住中線，用體重擠壓對手。',angular:'尖角帶刺，正面衝刺最傷，但小心失衡。',slender:'細長輕快，繞側游擊，避開正面硬碰。',dense:'墨重如石，擊退強，慢慢把對手逼向坑邊。',balanced:'攻守平均，觀察坑洞位置再決定進退。'};
+function showAbilities(prefix,t){const A=abil(t),N=anal(t),ok=N&&N.valid!==false,kd=ok&&N.kind in KIND?N.kind:'balanced';
+  $(prefix+'Kind').innerHTML='';const st=document.createElement('strong');st.textContent=KIND[kd]+' · '+(ok&&N.label||'均衡型');const sm=document.createElement('small');sm.textContent=(ok&&N.description?N.description+' ':'')+TIP[kd];$(prefix+'Kind').append(st,sm);
+  $(prefix+'Abil').innerHTML=AK.map((k,i)=>`<span>${AL[i]}</span><b><i class="${A[k]<100?'lo':''}" style="transform:scaleX(${((A[k]-65)/70).toFixed(3)})"></i></b><em>${Math.round(A[k])}</em>`).join('');
+  const f=(v,d=1)=>Number.isFinite(+v)?(+v).toFixed(d):'—';
+  $(prefix+'Anal').innerHTML=ok?[['寬 × 高',f(N.width)+' × '+f(N.height)],['墨量',f((N.inkRatio||0)*100)+'%'],['重心',f(N.centroid&&N.centroid.x)+', '+f(N.centroid&&N.centroid.y)],['尖銳度',f(N.sharpness,2)],['圓度',f(N.roundness,2)],['孔洞',N.holes??'—'],['連通塊',N.components??'—']].map(r=>`<dt>${r[0]}</dt><dd>${r[1]}</dd>`).join(''):'<dt>狀態</dt><dd>無法量測，以均衡 100 計</dd>';}
+const G=f=>()=>game&&game[f]&&game[f]();
+const mode=()=>snap?snap.mode:'menu';
+
+// Use grapheme clusters (not UTF-16 length): IME, combining marks and emoji stay whole.
+function drawPreview(id,t){
+  if(!t.shape)return;
+  const c=$(id),x=c.getContext('2d'),size=c.width;
+  x.clearRect(0,0,size,size);x.save();x.translate(size/2,size/2);x.rotate(t.angle||0);
+  x.drawImage(t.shape.canvas,-size*.34,-size*.34,size*.68,size*.68);x.restore();
+}
+function updateGlyph(side,initial=false){
+  if(!game||game.getSnapshot().mode!=='menu')return;
+  const prefix=side==='player'?'p':'e',input=$(prefix+'Glyph'),fallback=$(prefix+'Fallback');
+  const normalized=window.GlyphShapes.normalize(input.value);
+  const truncated=normalized!==input.value;
+  input.value=normalized;fallback.value=window.GlyphShapes.normalize(fallback.value);
+  // Keep current values in the downloaded standalone document as well.
+  input.setAttribute('value',input.value);fallback.setAttribute('value',fallback.value);
+  const result=game.setGlyph(side,input.value,fallback.value);
+  if(!result)return;
+  showAbilities(prefix,game.getSnapshot()[side]);
+  const status=$(prefix+'GlyphStatus');
+  status.textContent=result.usedFallback?result.reason+'目前使用「'+result.text+'」。':truncated&&!initial?'最多保留兩個完整字元；已更新預覽。':'透明處不碰撞 · 顯示與遮罩使用同一字形';
+  status.classList.toggle('warning',result.usedFallback);
+  input.setAttribute('aria-invalid',String(result.usedFallback));
+  document.querySelectorAll('[data-side="'+side+'"] button').forEach(b=>b.setAttribute('aria-pressed',String(b.textContent===input.value)));
+}
+if(game){
+  const saved=game.getSnapshot().glyphs;
+  for(const side of ['player','enemy']){
+    const prefix=side==='player'?'p':'e';
+    $(prefix+'Glyph').value=saved[side].text;$(prefix+'Fallback').value=saved[side].fallback;
+    for(const suffix of ['Glyph','Fallback']){
+      const input=$(prefix+suffix);
+      input.addEventListener('input',event=>{if(!event.isComposing)updateGlyph(side);});
+      input.addEventListener('compositionend',()=>updateGlyph(side));
+      input.addEventListener('keydown',event=>{if(event.code==='Enter'&&!event.isComposing){event.preventDefault();input.blur();}});
+    }
+    $(prefix+'UseFallback').onclick=()=>{$(prefix+'Glyph').value=$(prefix+'Fallback').value;updateGlyph(side);};
+    updateGlyph(side,true);
+  }
+  document.querySelectorAll('.glyph-presets').forEach(group=>{
+    group.addEventListener('click',event=>{
+      const button=event.target.closest('button');if(!button)return;
+      const side=group.dataset.side;$(side==='player'?'pGlyph':'eGlyph').value=button.textContent;updateGlyph(side);
+    });
+  });
+}
+
+// ---- Keyboard input ----
+const keys=new Set();let stick={x:0,y:0};
+function push(){if(!game)return;let x=stick.x,y=stick.y;
+  if(keys.has('l'))x-=1;if(keys.has('r'))x+=1;if(keys.has('u'))y-=1;if(keys.has('d'))y+=1;
+  const m=Math.hypot(x,y);if(m>1){x/=m;y/=m;}game.setInput(x,y);}
+function clearInput(){keys.clear();stick={x:0,y:0};$('knob').style.transform='';if(game)game.setInput(0,0);}
+const MAP={KeyW:'u',ArrowUp:'u',KeyS:'d',ArrowDown:'d',KeyA:'l',ArrowLeft:'l',KeyD:'r',ArrowRight:'r'};
+addEventListener('keydown',e=>{const m=mode();
+  if(e.isComposing||e.target.closest('input,textarea,[contenteditable="true"]'))return;
+  if(MAP[e.code]){keys.add(MAP[e.code]);push();e.preventDefault();return;}
+  if(e.code==='Space'){e.preventDefault();if(m==='playing')G('dash')();return;}
+  if(e.code==='Enter'){e.preventDefault();if(m==='menu'||m==='result')G('start')();else if(m==='paused')G('resume')();return;}
+  if(e.code==='Escape'||e.code==='KeyP'){e.preventDefault();if(!e.repeat)togglePause();}
+});
+addEventListener('keyup',e=>{if(MAP[e.code]){keys.delete(MAP[e.code]);push();}});
+function togglePause(){const m=mode();if(m==='playing')G('pause')();else if(m==='paused')G('resume')();}
+function autoPause(){clearInput();if(mode()==='playing')G('pause')();}
+addEventListener('blur',autoPause);document.addEventListener('visibilitychange',()=>{if(document.hidden)autoPause();});
+
+// ---- Joystick (pointer capture) ----
+const st=$('stick'),knob=$('knob');let sid=null;
+function moveStick(e){const r=st.getBoundingClientRect(),R=r.width/2;let dx=e.clientX-r.left-R,dy=e.clientY-r.top-R;const m=Math.hypot(dx,dy),lim=R*.6;
+  if(m>lim){dx=dx/m*lim;dy=dy/m*lim;}knob.style.transform=`translate(${dx}px,${dy}px)`;stick={x:dx/lim,y:dy/lim};push();}
+st.addEventListener('pointerdown',e=>{sid=e.pointerId;st.setPointerCapture(sid);moveStick(e);e.preventDefault();});
+st.addEventListener('pointermove',e=>{if(e.pointerId===sid)moveStick(e);});
+['pointerup','pointercancel','lostpointercapture'].forEach(n=>st.addEventListener(n,e=>{if(e.pointerId!==sid)return;sid=null;stick={x:0,y:0};knob.style.transform='';push();}));
+const db=$('dashB');db.addEventListener('pointerdown',e=>{e.preventDefault();db.setPointerCapture(e.pointerId);G('dash')();});
+
+// ---- Buttons ----
+$('bStart').onclick=G('start');$('bRetry').onclick=G('start');$('bResume').onclick=G('resume');
+$('bHome1').onclick=G('home');$('bHome2').onclick=G('home');$('bPause').onclick=togglePause;
+$('bSound').onclick=()=>{if(game)game.setSound(!(snap&&snap.sound));};
+
+// ---- Download standalone HTML without any network request ----
+$('bDl').onclick=()=>{let html='';
+    const d=document.documentElement.cloneNode(true);
+    d.querySelectorAll('script[src],script[type="module"]').forEach(s=>s.remove()); // strip injected dev scripts
+    d.querySelectorAll('.ov').forEach(o=>o.classList.toggle('on',o.id==='ovMenu'));
+    html='<!DOCTYPE html>\n'+d.outerHTML;
+  html=html.replace(/<script[^>]*\/@vite\/client[^>]*><\/script>/g,'').replace(/<script type="module"[^>]*src=[^>]*><\/script>/g,'');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([html],{type:'text/html'}));a.download='index.html';document.body.appendChild(a);a.click();
+  setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},1000);};
+})();
+</script>
+</body>
+</html>
